@@ -143,8 +143,137 @@ async def create_task(task_data: Task, current_user: dict = Depends(get_current_
     return new_task
 
 # Add PUT, DELETE endpoints similarly, with auth checks
+# services/task-service/main.py
+
+# ... other imports ...
+from datetime import datetime # Import datetime
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.future import select
+from sqlalchemy import update, delete # Import update and delete
+from database import get_db
+import models # Import your models file
+# Import your schemas (assuming they are defined above or in schemas.py)
+# from schemas import TaskSchema, TaskCreate, TaskUpdate
+
+# ... (Keep FastAPI app setup, Keycloak auth, etc.) ...
+
+# --- API Endpoints Refactored ---
+
+@app.get("/tasks/", response_model=list[TaskSchema]) # Use TaskSchema
+async def get_tasks(
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+    skip: int = 0, # Add pagination
+    limit: int = 100 # Add pagination
+):
+    # Example: Only show tasks assigned to or reported by the user (adjust logic as needed)
+    user_id = current_user["id"]
+    # query = select(models.Task).where(
+    #     (models.Task.assignee_id == user_id) | (models.Task.reporter_id == user_id)
+    # ).offset(skip).limit(limit)
+
+    # Simpler: Get all tasks for now, filter later based on roles/permissions
+    query = select(models.Task).offset(skip).limit(limit)
+
+    result = await db.execute(query)
+    tasks = result.scalars().all()
+    return tasks
+
+@app.get("/tasks/{task_id}", response_model=TaskSchema) # Use TaskSchema
+async def get_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    query = select(models.Task).where(models.Task.id == task_id)
+    result = await db.execute(query)
+    task = result.scalar_one_or_none()
+    if task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Add authorization: Can current_user view this specific task?
+    # Example: if task.assignee_id != current_user['id'] and task.reporter_id != current_user['id'] and 'app_admin' not in current_user['roles']:
+    #    raise HTTPException(status_code=403, detail="Not authorized to view this task")
+
+    return task
+
+@app.post("/tasks/", response_model=TaskSchema, status_code=status.HTTP_201_CREATED) # Use TaskSchema
+async def create_task(
+    task_in: TaskCreate, # Use TaskCreate schema for input
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    # Role check (example)
+    # if "project_manager" not in current_user['roles'] and "app_admin" not in current_user['roles']:
+    #     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not enough permissions to create tasks")
+
+    user_id = current_user["id"] # Get user ID from token
+    db_task = models.Task(
+        **task_in.model_dump(), # Create model from schema data
+        reporter_id=user_id # Set the reporter
+    )
+    db.add(db_task)
+    # No need for explicit commit here, get_db handles it
+    # await db.commit() # get_db handles commit/rollback
+    await db.refresh(db_task) # Refresh to get DB-generated values like ID, created_at
+    return db_task
+
+
+@app.put("/tasks/{task_id}", response_model=TaskSchema)
+async def update_task(
+    task_id: int,
+    task_in: TaskUpdate, # Use TaskUpdate schema for partial updates
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    query = select(models.Task).where(models.Task.id == task_id)
+    result = await db.execute(query)
+    db_task = result.scalar_one_or_none()
+
+    if db_task is None:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Add authorization: Can current_user update this task? (e.g., assignee, reporter, admin)
+    # ... authorization logic ...
+
+    # Get updated data, excluding unset fields to allow partial updates
+    update_data = task_in.model_dump(exclude_unset=True)
+
+    # Update the task object attributes
+    for key, value in update_data.items():
+        setattr(db_task, key, value)
+
+    db.add(db_task) # Add the updated object to the session
+    # await db.commit() # get_db handles commit/rollback
+    await db.refresh(db_task)
+    return db_task
+
+
+@app.delete("/tasks/{task_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_task(
+    task_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user)
+):
+    query = select(models.Task).where(models.Task.id == task_id)
+    result = await db.execute(query)
+    db_task = result.scalar_one_or_none()
+
+    if db_task is None:
+        # Avoid revealing existence, could just return 204, or 404 if preferred
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    # Add authorization: Can current_user delete this task? (e.g., reporter, admin)
+    # ... authorization logic ...
+
+    await db.delete(db_task)
+    # await db.commit() # get_db handles commit/rollback
+    return None # Return None for 204 No Content
+
+# ... (Keep /users/me endpoint) ...
 
 # Endpoint to check user info from token (for debugging)
 @app.get("/users/me")
 async def read_users_me(current_user: dict = Depends(get_current_user)):
     return current_user
+

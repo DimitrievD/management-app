@@ -1,0 +1,58 @@
+# mkdocs.yml
+site_name: Enterprise Task App Docs
+site_url: https://example.com/ # Replace with your actual URL later
+repo_url: <your-git-repo-url> # Optional: Link to your Git repository
+repo_name: <your-repo-name>  # Optional: Name for the repo link
+
+theme:
+  name: material # Use the Material theme
+  palette:
+    # Palette toggle for light/dark mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs # Use tabs for top-level sections
+    - navigation.sections # Expand sections in the sidebar
+    - toc.integrate # Show table of contents integrated in sidebar
+    - navigation.top # Back-to-top button
+    - search.suggest # Search suggestions
+    - content.code.annotate # Code annotations
+    - content.code.copy # Copy button for code blocks
+
+markdown_extensions:
+  - pymdownx.highlight: # Syntax highlighting
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets # Include snippets from other files
+  - pymdownx.superfences # Better fence handling (e.g., for diagrams)
+  - admonition # Admonition blocks (note, warning, etc.)
+  - toc:
+      permalink: true # Add anchor links to headings
+
+# --- Navigation Structure ---
+nav:
+  - Home: index.md
+  - Architecture: architecture.md
+  - Getting Started: getting-started.md
+  - Services:
+    - Overview: services/index.md
+    - Task Service: services/task-service.md
+    - Notification Service: services/notification-service.md
+    - Analytics Service: services/analytics-service.md
+    - Authentication (Keycloak): services/auth-keycloak.md
+  - Frontends:
+    - Overview: frontends/index.md
+    - Dashboard (Vue): frontends/dashboard-vue.md
+    - Main App (React): frontends/main-app-react.md # Placeholder
+  - Deployment:
+    - Docker Compose: deployment/docker-compose.md
+    - Kubernetes: deployment/kubernetes.md
+  - API Reference: api/index.md # Placeholder for Swagger/OpenAPI docs later
